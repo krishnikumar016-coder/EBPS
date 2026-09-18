@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Employee Burnout Prediction System — AI-powered CNN-LSTM dashboard for predicting and managing employee burnout risk.">
+    <title>Burn-out Barrior — Employee Burnout Prediction System</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- Mobile Menu Button -->
+<button class="mobile-menu-btn" id="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
+
+<div class="app-layout">
+    <!-- ===== SIDEBAR ===== -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-brand">
+            <h1>🔥 Burn-out Barrior</h1>
+            <p>Burnout Prediction AI</p>
+        </div>
+
+        <div class="role-switcher-wrapper">
+            <label class="role-switcher-label">Operating Role:</label>
+            <div class="custom-dropdown" id="custom-role-dropdown">
+                <button class="custom-dropdown-btn" id="role-dropdown-btn" type="button" onclick="toggleCustomDropdown()">
+                    <span id="role-dropdown-current">👤 HR Manager</span>
+                    <span class="dropdown-arrow">▼</span>
+                </button>
+                <div class="custom-dropdown-menu" id="role-dropdown-menu">
+                    <div class="custom-dropdown-option active" data-value="HR Manager" onclick="selectRoleOption('HR Manager', '👤 HR Manager')">
+                        <span class="option-icon">👤</span>
+                        <span class="option-text">HR Manager</span>
+                    </div>
+                    <div class="custom-dropdown-option" data-value="Administrator" onclick="selectRoleOption('Administrator', '🛠️ Administrator')">
+                        <span class="option-icon">🛠️</span>
+                        <span class="option-text">Administrator</span>
+                    </div>
+                    <div class="custom-dropdown-option" data-value="Machine Learning Engineer" onclick="selectRoleOption('Machine Learning Engineer', '🧠 ML Engineer')">
+                        <span class="option-icon">🧠</span>
+                        <span class="option-text">ML Engineer</span>
+                    </div>
+                </div>
+            </div>
+            <select id="role-switcher" style="display:none;" onchange="switchRole(this.value)">
+                <option value="HR Manager">👤 HR Manager</option>
+                <option value="Administrator">🛠️ Administrator</option>
+                <option value="Machine Learning Engineer">🧠 ML Engineer</option>
+            </select>
+        </div>
+
+        <nav class="sidebar-nav">
+            <div class="nav-item active" data-view="dashboard" onclick="switchView('dashboard')">
+                <span class="icon">📊</span>
+                <span>Dashboard</span>
+            </div>
+            <div class="nav-item" data-view="employees" onclick="switchView('employees')">
+                <span class="icon">👥</span>
+                <span>Employees</span>
+            </div>
+            <div class="nav-item" data-view="predict" onclick="switchView('predict')">
+                <span class="icon">🎯</span>
+                <span>Predict</span>
+            </div>
+            <div class="nav-item" data-view="insights" onclick="switchView('insights')">
+                <span class="icon">🧠</span>
+                <span>Model Insights</span>
+            </div>
+            <div class="nav-item role-restricted role-admin" data-view="admin" onclick="switchView('admin')" style="display:none;">
+                <span class="icon">🛠️</span>
+                <span>Admin Portal</span>
+            </div>
+            <div class="nav-item role-restricted role-mle" data-view="ml-eng" onclick="switchView('ml-eng')" style="display:none;">
+                <span class="icon">⚡</span>
+                <span>ML Lab</span>
+            </div>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="model-badge">
+                <span class="dot"></span>
+                <span>CNN-LSTM Model Active</span>
+            </div>
+        </div>
+    </aside>
+
+    <!-- ===== MAIN CONTENT ===== -->
+    <main class="main-content">
+
+        <!-- ======== DASHBOARD VIEW ======== -->
+        <div class="view active" id="view-dashboard">
+            <div class="page-header d-flex-between">
+                <div>
+                    <h2>Dashboard Overview</h2>
+                    <p>Real-time burnout risk analytics for your organization</p>
+                </div>
+                <a href="/api/reports/download" target="_blank" class="btn btn-secondary btn-sm" id="btn-export-report">
+                    📥 Export HR Report (CSV)
+                </a>
+            </div>
+
+            <!-- Stats Cards -->
+            <div class="stats-grid" id="stats-grid">
+                <div class="card stat-card">
+                    <div class="stat-icon blue">👥</div>
+                    <div class="stat-value" id="stat-total-employees">—</div>
+                    <div class="stat-label">Total Employees</div>
+                </div>
+                <div class="card stat-card">
+                    <div class="stat-icon red">⚠️</div>
+                    <div class="stat-value" id="stat-high-risk">—</div>
+                    <div class="stat-label">High Risk</div>
+                </div>
+                <div class="card stat-card">
+                    <div class="stat-icon yellow">⚡</div>
+                    <div class="stat-value" id="stat-medium-risk">—</div>
+                    <div class="stat-label">Medium Risk</div>
+                </div>
+                <div class="card stat-card">
+                    <div class="stat-icon green">✅</div>
+                    <div class="stat-value" id="stat-low-risk">—</div>
+                    <div class="stat-label">Low Risk</div>
+                </div>
+                <div class="card stat-card">
+                    <div class="stat-icon purple">📈</div>
+                    <div class="stat-value" id="stat-avg-burn">—</div>
+                    <div class="stat-label">Avg Burn Probability</div>
+                </div>
+            </div>
+
+            <!-- Charts -->
+            <div class="charts-grid">
+                <div class="card">
+                    <div class="card-title">Risk Distribution</div>
+                    <div class="chart-container">
+                        <canvas id="chart-risk-distribution"></canvas>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title">Recent Prediction Trend</div>
+                    <div class="chart-container">
+                        <canvas id="chart-prediction-trend"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Predictions -->
+            <div class="card">
+                <div class="card-title">Recent Predictions</div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Employee</th>
+                                <th>Code</th>
+                                <th>Burn Probability</th>
+                                <th>Risk Level</th>
+                                <th>Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recent-predictions-body">
+                            <tr>
+                                <td colspan="5" class="text-muted" style="text-align:center; padding:32px;">
+                                    No predictions yet. Add employees and run predictions.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ======== EMPLOYEES VIEW ======== -->
+        <div class="view" id="view-employees">
+            <div class="page-header">
+                <h2>Employee Management</h2>
+                <p>Add, edit, and manage employee records</p>
+            </div>
+
+            <div class="toolbar">
+                <div class="search-input-wrapper" style="max-width: 400px;">
+                    <span class="icon">🔍</span>
+                    <input type="text" class="form-control" id="employee-search"
+                           placeholder="Search by name or ID..." oninput="searchEmployees()">
+                </div>
+                <div style="display:flex; gap:8px;">
+                    <button class="btn btn-primary" onclick="openAddEmployeeModal()">+ Add Employee</button>
+                    <button class="btn btn-secondary" onclick="predictAllEmployees()">🎯 Predict All</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>Gender</th>
+                                <th>Company</th>
+                                <th>WFH</th>
+                                <th>Designation</th>
+                                <th>Resources</th>
+                                <th>Fatigue</th>
+                                <th>Favourite Free Time Activities</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="employees-table-body">
+                            <tr>
+                                <td colspan="10" class="text-muted" style="text-align:center; padding:32px;">
+                                    <div class="empty-state">
+                                        <div class="icon">👥</div>
+                                        <p>No employees added yet</p>
+                                        <button class="btn btn-primary btn-sm" onclick="openAddEmployeeModal()">+ Add First Employee</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pagination" id="employees-pagination"></div>
+            </div>
+        </div>
+
+        <!-- ======== PREDICT VIEW ======== -->
+        <div class="view" id="view-predict">
+            <div class="page-header">
+                <h2>Burnout Prediction</h2>
+                <p>Input employee features to predict burnout risk & trigger personalized micro-break alerts</p>
+            </div>
+
+            <div class="predict-layout">
+                <!-- Input Form -->
+                <div class="card">
+                    <div class="card-title">Employee Features & Preferences</div>
+                    <form id="predict-form" onsubmit="runPrediction(event)">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="pred-name">Employee Name (Optional)</label>
+                                <input type="text" class="form-control" id="pred-name" placeholder="e.g. Krishni">
+                            </div>
+                            <div class="form-group">
+                                <label for="pred-activities">Favourite Free Time Activity</label>
+                                <input type="text" class="form-control" id="pred-activities" placeholder="e.g. listening to music">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="pred-gender">Gender</label>
+                                <select class="form-control" id="pred-gender" required>
+                                    <option value="">Select gender</option>
+                                    <option value="Male">Male</option>
+                                    <option value="Female">Female</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="pred-company">Company Type</label>
+                                <select class="form-control" id="pred-company" required>
+                                    <option value="">Select type</option>
+                                    <option value="Service">Service</option>
+                                    <option value="Product">Product</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="pred-wfh">WFH Available</label>
+                                <select class="form-control" id="pred-wfh" required>
+                                    <option value="">Select option</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="pred-designation">Designation (0–5)</label>
+                                <input type="number" class="form-control" id="pred-designation"
+                                       min="0" max="5" step="1" placeholder="e.g. 3" required>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="pred-resource">Resource Allocation (1–10)</label>
+                                <input type="number" class="form-control" id="pred-resource"
+                                       min="1" max="10" step="0.1" placeholder="e.g. 7.5" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="pred-fatigue">Mental Fatigue Score (0–10)</label>
+                                <input type="number" class="form-control" id="pred-fatigue"
+                                       min="0" max="10" step="0.1" placeholder="e.g. 6.2" required>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary" id="predict-btn" style="width:100%;">
+                            🎯 Run Prediction
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Result -->
+                <div class="prediction-result" id="prediction-result">
+                    <div class="card" style="text-align: center;">
+                        <div class="card-title">Prediction Result</div>
+
+                        <!-- Gauge -->
+                        <div class="gauge-container">
+                            <svg class="gauge-svg" viewBox="0 0 200 120">
+                                <path class="gauge-track"
+                                      d="M 20 100 A 80 80 0 0 1 180 100" />
+                                <path class="gauge-fill" id="gauge-fill"
+                                      d="M 20 100 A 80 80 0 0 1 180 100"
+                                      stroke="var(--risk-low)"
+                                      stroke-dasharray="251"
+                                      stroke-dashoffset="251" />
+                                <text class="gauge-value" x="100" y="85" id="gauge-value-text">0%</text>
+                                <text class="gauge-label" x="100" y="108">Burn Probability</text>
+                            </svg>
+                        </div>
+
+                        <div class="gauge-risk-label" id="gauge-risk-label">—</div>
+
+                        <div style="margin-top: 24px; display:flex; gap:12px; justify-content:center;">
+                            <div class="card" style="flex:1; padding:16px; text-align:center;">
+                                <div class="text-muted" style="font-size:0.75rem; margin-bottom:4px;">PROBABILITY</div>
+                                <div class="fw-700" id="result-probability" style="font-size:1.2rem;">—</div>
+                            </div>
+                            <div class="card" style="flex:1; padding:16px; text-align:center;">
+                                <div class="text-muted" style="font-size:0.75rem; margin-bottom:4px;">RISK LEVEL</div>
+                                <div class="fw-700" id="result-risk-level" style="font-size:1.2rem;">—</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Burnout Early Warning & Mind-Cooling Micro-Break Card -->
+                    <div class="card mt-lg burnout-alert-card" id="burnout-alert-card" style="display:none;">
+                        <div class="card-title d-flex-between">
+                            <span>🚨 Predictive Burnout Alert</span>
+                            <span class="badge badge-warning" id="alert-horizon-badge">⏳ Burnout predicted in 2 hours</span>
+                        </div>
+                        <div class="alert-message-box mt-md">
+                            <div class="alert-quote-icon">🎵</div>
+                            <div class="alert-text" id="alert-message-text">
+                                "Krishni you go listen to music for 15 mins that makes your mind cool"
+                            </div>
+                        </div>
+                        <div class="working-hours-info mt-md">
+                            <span class="icon">⏰</span>
+                            <div>
+                                <strong>Working Hours Safeguard:</strong>
+                                <span id="alert-hours-protection">Scheduled as a 15-min restorative micro-break during optimum focus downtime. Does not affect daily work hours output.</span>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary mt-md" id="btn-dispatch-burnout-alert" style="width: 100%; justify-content: center;" onclick="dispatchBurnoutAlert()">
+                            🔔 Dispatch Micro-Break Alert to Employee
+                        </button>
+                    </div>
+
+                    <!-- Contributing Factors -->
+                    <div class="card mt-lg" id="factors-card">
+                        <div class="card-title">🔍 Contributing Factors</div>
+                        <div id="factors-list" class="factors-list">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+
+                    <!-- Recommended Interventions -->
+                    <div class="card mt-lg" id="interventions-card">
+                        <div class="card-title">💡 Recommended Interventions</div>
+                        <div id="interventions-list" class="interventions-list">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+
+                    <div id="relief-action-container" style="display: none; margin-top: 24px;">
+                        <button class="btn btn-primary" id="btn-send-relief" style="width: 100%; justify-content: center;">
+                            ✉️ Send Relief Resources
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ======== INSIGHTS VIEW ======== -->
+        <div class="view" id="view-insights">
+            <div class="page-header">
+                <h2>Model Insights</h2>
+                <p>CNN-LSTM model performance metrics and training visualizations</p>
+            </div>
+
+            <!-- Performance Metrics -->
+            <div class="stats-grid">
+                <div class="card stat-card">
+                    <div class="stat-icon blue">🎯</div>
+                    <div class="stat-value" id="metric-accuracy">93.08%</div>
+                    <div class="stat-label">Accuracy</div>
+                    <div class="metric-bar"><div class="metric-bar-fill" style="width:93.08%"></div></div>
+                </div>
+                <div class="card stat-card">
+                    <div class="stat-icon green">📊</div>
+                    <div class="stat-value" id="metric-f1">91.55%</div>
+                    <div class="stat-label">F1-Score</div>
+                    <div class="metric-bar"><div class="metric-bar-fill" style="width:91.55%"></div></div>
+                </div>
+                <div class="card stat-card">
+                    <div class="stat-icon purple">📈</div>
+                    <div class="stat-value" id="metric-auc">98.40%</div>
+                    <div class="stat-label">ROC-AUC</div>
+                    <div class="metric-bar"><div class="metric-bar-fill" style="width:98.40%"></div></div>
+                </div>
+            </div>
+
+            <!-- Model Architecture & Training Plots -->
+            <div class="model-grid">
+                <div class="card">
+                    <div class="card-title">Model Architecture</div>
+                    <ul class="layer-list" id="layer-list">
+                        <li><span class="layer-name">Loading...</span></li>
+                    </ul>
+                    <div style="margin-top:16px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.04);">
+                        <div class="metric-item">
+                            <span class="metric-name">Total Parameters</span>
+                            <span class="metric-value" id="total-params">—</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="metric-name">Risk Threshold</span>
+                            <span class="metric-value">0.5</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">Training History</div>
+                    <img class="plot-image" src="/plots/training_history.png"
+                         alt="Training loss and accuracy curves" loading="lazy">
+                </div>
+            </div>
+
+            <div class="model-grid">
+                <div class="card">
+                    <div class="card-title">ROC Curve & Confusion Matrix</div>
+                    <img class="plot-image" src="/plots/evaluation_results.png"
+                         alt="ROC curve and confusion matrix heatmap" loading="lazy">
+                </div>
+                <div class="card">
+                    <div class="card-title">Feature Distributions</div>
+                    <img class="plot-image" src="/plots/numerical_distributions.png"
+                         alt="Numerical feature distributions" loading="lazy">
+                </div>
+            </div>
+        </div>
+
+        <!-- ======== ADMIN VIEW ======== -->
+        <div class="view" id="view-admin">
+            <div class="page-header">
+                <h2>Administrator Portal</h2>
+                <p>Manage system users, role-based access, and system configurations</p>
+            </div>
+
+            <div class="card mb-lg">
+                <div class="card-title">Add System User</div>
+                <form id="add-user-form" onsubmit="saveUser(event)">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="user-username">Username</label>
+                            <input type="text" class="form-control" id="user-username" placeholder="e.g. jdoe_hr" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="user-password">Password</label>
+                            <input type="password" class="form-control" id="user-password" placeholder="••••••••" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="user-role">System Role</label>
+                            <select class="form-control" id="user-role" required>
+                                <option value="HR Manager">HR Manager</option>
+                                <option value="Administrator">Administrator</option>
+                                <option value="Machine Learning Engineer">Machine Learning Engineer</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="user-name">Full Name</label>
+                            <input type="text" class="form-control" id="user-name" placeholder="e.g. Jane Doe" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">➕ Create System User</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <div class="card-title">Registered System Users</div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Username</th>
+                                <th>Role</th>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Created At</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-table-body">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ======== ML ENGINEER VIEW ======== -->
+        <div class="view" id="view-ml-eng">
+            <div class="page-header">
+                <h2>Machine Learning Engineer Lab</h2>
+                <p>Model retraining, drift monitoring, and hyperparameter tuning</p>
+            </div>
+
+            <div class="stats-grid">
+                <div class="card">
+                    <div class="card-title">Model Retraining Control</div>
+                    <form id="retrain-form" onsubmit="triggerModelRetrain(event)">
+                        <div class="form-group">
+                            <label for="retrain-epochs">Epochs</label>
+                            <input type="number" class="form-control" id="retrain-epochs" value="15" min="5" max="50">
+                        </div>
+                        <div class="form-group">
+                            <label for="retrain-lr">Learning Rate</label>
+                            <input type="number" class="form-control" id="retrain-lr" value="0.001" step="0.0001">
+                        </div>
+                        <button type="submit" class="btn btn-primary" id="btn-retrain" style="width:100%;">
+                            🚀 Retrain CNN-LSTM Model
+                        </button>
+                    </form>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">Model Feature Drift Monitoring</div>
+                    <div id="drift-metrics-container">
+                        <div class="metric-item">
+                            <span class="metric-name">Overall Drift Index</span>
+                            <span class="metric-value" id="drift-score">0.035 (Stable)</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="metric-name">Retraining Status</span>
+                            <span class="metric-value" style="color:var(--risk-low);">✅ Model Healthy</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<!-- ===== ADD / EDIT EMPLOYEE MODAL ===== -->
+<div class="modal-overlay" id="employee-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 id="modal-title">Add Employee</h3>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <form id="employee-form" onsubmit="saveEmployee(event)">
+            <input type="hidden" id="modal-emp-pk">
+            <div class="form-group">
+                <label for="modal-emp-id">Employee ID</label>
+                <input type="text" class="form-control" id="modal-emp-id" placeholder="e.g. EMP-001" required>
+            </div>
+            <div class="form-group">
+                <label for="modal-emp-name">Full Name</label>
+                <input type="text" class="form-control" id="modal-emp-name" placeholder="e.g. John Doe" required>
+            </div>
+            <div class="form-group">
+                <label for="modal-emp-email">Email Address</label>
+                <input type="email" class="form-control" id="modal-emp-email" placeholder="e.g. employee@company.com">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="modal-emp-gender">Gender</label>
+                    <select class="form-control" id="modal-emp-gender" required>
+                        <option value="">Select</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="modal-emp-company">Company Type</label>
+                    <select class="form-control" id="modal-emp-company" required>
+                        <option value="">Select</option>
+                        <option value="Service">Service</option>
+                        <option value="Product">Product</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="modal-emp-wfh">WFH Available</label>
+                    <select class="form-control" id="modal-emp-wfh" required>
+                        <option value="">Select</option>
+                        <option value="Yes">Yes</option>
+                        <option value="No">No</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="modal-emp-designation">Designation (0–5)</label>
+                    <input type="number" class="form-control" id="modal-emp-designation"
+                           min="0" max="5" step="1" placeholder="e.g. 3" required>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="modal-emp-resource">Resource Allocation (1–10)</label>
+                    <input type="number" class="form-control" id="modal-emp-resource"
+                           min="1" max="10" step="0.1" placeholder="e.g. 7.5" required>
+                </div>
+                <div class="form-group">
+                    <label for="modal-emp-fatigue">Mental Fatigue Score (0–10)</label>
+                    <input type="number" class="form-control" id="modal-emp-fatigue"
+                           min="0" max="10" step="0.1" placeholder="e.g. 6.2" required>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="modal-emp-activities">Favourite Free Time Activities</label>
+                <input type="text" class="form-control" id="modal-emp-activities" placeholder="e.g. listening to music, walking in nature">
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary" id="modal-submit-btn">Add Employee</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ===== CONFIRM DELETE MODAL ===== -->
+<div class="modal-overlay" id="delete-modal">
+    <div class="modal" style="max-width:400px; text-align:center;">
+        <div class="modal-header">
+            <h3>Confirm Deletion</h3>
+            <button class="modal-close" onclick="closeDeleteModal()">&times;</button>
+        </div>
+        <p style="color:var(--text-secondary); margin-bottom:24px;">
+            Are you sure you want to delete <strong id="delete-emp-name">this employee</strong>?
+            This will also remove all their prediction history.
+        </p>
+        <div class="modal-actions" style="justify-content:center;">
+            <button class="btn btn-secondary" onclick="closeDeleteModal()">Cancel</button>
+            <button class="btn btn-danger" id="confirm-delete-btn" onclick="confirmDelete()">Delete</button>
+        </div>
+    </div>
+</div>
+
+<script src="/static/charts.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>
