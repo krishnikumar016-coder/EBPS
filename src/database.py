@@ -107,6 +107,39 @@ def init_db():
             VALUES (?, ?, ?, ?, ?)
         """, default_users)
 
+    # Seed initial sample employees & predictions if employees table is empty
+    emp_count = cursor.execute("SELECT COUNT(*) FROM employees").fetchone()[0]
+    if emp_count == 0:
+        sample_employees = [
+            ("EMP-1001", "Aarav Sharma", "aarav.sharma@company.com", "Male", "Service", "Yes", 4.0, 8.5, 8.2, "listening to music", 0.88, "High"),
+            ("EMP-1002", "Priya Patel", "priya.patel@company.com", "Female", "Service", "No", 5.0, 9.0, 8.7, "reading books", 0.92, "High"),
+            ("EMP-1003", "Rohan Mehta", "rohan.mehta@company.com", "Male", "Product", "Yes", 3.0, 7.5, 7.8, "playing guitar", 0.79, "High"),
+            ("EMP-1004", "Ananya Verma", "ananya.verma@company.com", "Female", "Product", "Yes", 2.0, 5.0, 5.5, "meditation", 0.52, "Medium"),
+            ("EMP-1005", "Vikram Singh", "vikram.singh@company.com", "Male", "Service", "No", 3.0, 6.0, 6.2, "cycling", 0.61, "Medium"),
+            ("EMP-1006", "Sneha Rao", "sneha.rao@company.com", "Female", "Product", "Yes", 4.0, 6.5, 5.8, "listening to music", 0.58, "Medium"),
+            ("EMP-1007", "Karan Joshi", "karan.joshi@company.com", "Male", "Service", "Yes", 1.0, 3.0, 3.2, "gaming", 0.28, "Low"),
+            ("EMP-1008", "Diya Nair", "diya.nair@company.com", "Female", "Product", "Yes", 2.0, 3.5, 2.8, "painting", 0.22, "Low"),
+            ("EMP-1009", "Aditya Kumar", "aditya.kumar@company.com", "Male", "Service", "No", 1.0, 2.5, 2.1, "swimming", 0.18, "Low"),
+            ("EMP-1010", "Neha Gupta", "neha.gupta@company.com", "Female", "Product", "Yes", 2.0, 4.0, 3.8, "listening to music", 0.34, "Low"),
+        ]
+        for emp in sample_employees:
+            emp_code, name, email, gender, comp, wfh, desig, res_alloc, fatigue, act, prob, risk = emp
+            cursor.execute("""
+                INSERT INTO employees (employee_id, name, email, gender, company_type, wfh_available, designation, resource_allocation, mental_fatigue_score, favourite_activities)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (emp_code, name, email, gender, comp, wfh, desig, res_alloc, fatigue, act))
+            emp_pk = cursor.lastrowid
+            
+            features_json = json.dumps({
+                "name": name, "favourite_activities": act, "gender": gender,
+                "company_type": comp, "wfh_available": wfh, "designation": desig,
+                "resource_allocation": res_alloc, "mental_fatigue_score": fatigue
+            })
+            cursor.execute("""
+                INSERT INTO predictions (employee_id, burn_probability, risk_level, input_features, model_version)
+                VALUES (?, ?, ?, ?, ?)
+            """, (emp_pk, prob, risk, features_json, "CNN-LSTM-v1.0"))
+
     conn.commit()
     conn.close()
     print(f"Database initialized at {DB_PATH}")

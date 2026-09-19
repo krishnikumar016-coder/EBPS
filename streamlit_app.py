@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.join(PROJECT_DIR, "src"))
 
 from database import (
     init_db, get_dashboard_stats, get_all_employees,
-    get_employee, save_burnout_alert, get_all_users, create_user
+    get_employee, create_employee, save_prediction, save_burnout_alert, get_all_users, create_user
 )
 from api.predict import predict_single, get_model_info
 from drift import detect_feature_drift
@@ -155,6 +155,7 @@ if role == "HR Manager":
             designation = st.slider("Designation (0–5)", 0.0, 5.0, 3.0, 0.5)
             resource = st.slider("Resource Allocation (1–10)", 1.0, 10.0, 8.5, 0.1)
             fatigue = st.slider("Mental Fatigue Score (0–10)", 0.0, 10.0, 7.8, 0.1)
+            save_to_db = st.checkbox("💾 Save Employee & Record Prediction to Directory", value=True)
             
             run_btn = st.button("🎯 Run Burnout Prediction", type="primary", use_container_width=True)
             
@@ -175,6 +176,26 @@ if role == "HR Manager":
                 prob = res["burn_probability"] * 100
                 risk = res["risk_level"]
                 alert = res["burnout_alert"]
+                
+                if save_to_db:
+                    emp_code = f"EMP-{abs(hash(emp_name)) % 9000 + 1000}"
+                    try:
+                        created = create_employee({
+                            "employee_id": emp_code,
+                            "name": emp_name,
+                            "email": f"{emp_name.lower().replace(' ', '.')}@company.com",
+                            "gender": gender,
+                            "company_type": company,
+                            "wfh_available": wfh,
+                            "designation": designation,
+                            "resource_allocation": resource,
+                            "mental_fatigue_score": fatigue,
+                            "favourite_activities": fav_act
+                        })
+                        save_prediction(created["id"], res["burn_probability"], res["risk_level"], input_features=payload, model_version="CNN-LSTM-v1.0")
+                        st.success(f"Employee **{emp_name}** ({emp_code}) saved to database!")
+                    except Exception:
+                        pass
                 
                 st.progress(int(prob))
                 
@@ -197,13 +218,71 @@ if role == "HR Manager":
 
     # Tab 3: Employee Directory
     with tabs[2]:
-        st.header("Employee Directory")
+        st.header("Employee Directory & Management")
+        
+        with st.expander("➕ Add New Employee to Directory", expanded=False):
+            with st.form("add_employee_form"):
+                new_code = st.text_input("Employee Code (ID)", f"EMP-{abs(hash(os.urandom(4))) % 9000 + 1000}")
+                new_name = st.text_input("Full Name", "John Doe")
+                new_email = st.text_input("Email Address", "john.doe@company.com")
+                
+                c_g, c_c, c_w = st.columns(3)
+                with c_g:
+                    new_gender = st.selectbox("Gender", ["Male", "Female"])
+                with c_c:
+                    new_comp = st.selectbox("Company Type", ["Service", "Product"])
+                with c_w:
+                    new_wfh = st.selectbox("WFH Setup", ["Yes", "No"])
+                
+                c_d, c_r, c_f = st.columns(3)
+                with c_d:
+                    new_desig = st.number_input("Designation (0–5)", 0.0, 5.0, 3.0, 0.5)
+                with c_r:
+                    new_res = st.number_input("Resource Allocation (1–10)", 1.0, 10.0, 5.0, 0.5)
+                with c_f:
+                    new_fatigue = st.number_input("Mental Fatigue (0–10)", 0.0, 10.0, 5.0, 0.5)
+                    
+                new_act = st.text_input("Favourite Free Time Activity", "listening to music")
+                submit_emp = st.form_submit_button("💾 Save Employee", type="primary")
+                
+                if submit_emp:
+                    if new_code and new_name:
+                        try:
+                            created_emp = create_employee({
+                                "employee_id": new_code,
+                                "name": new_name,
+                                "email": new_email or f"{new_code.lower()}@company.com",
+                                "gender": new_gender,
+                                "company_type": new_comp,
+                                "wfh_available": new_wfh,
+                                "designation": new_desig,
+                                "resource_allocation": new_res,
+                                "mental_fatigue_score": new_fatigue,
+                                "favourite_activities": new_act
+                            })
+                            pred_res = predict_single({
+                                "name": new_name,
+                                "gender": new_gender,
+                                "company_type": new_comp,
+                                "wfh_available": new_wfh,
+                                "designation": new_desig,
+                                "resource_allocation": new_res,
+                                "mental_fatigue_score": new_fatigue,
+                                "favourite_activities": new_act
+                            })
+                            save_prediction(created_emp["id"], pred_res["burn_probability"], pred_res["risk_level"], input_features=pred_res, model_version="CNN-LSTM-v1.0")
+                            st.success(f"Employee **{new_name}** added successfully!")
+                        except Exception as ex:
+                            st.error(str(ex))
+                    else:
+                        st.error("Please enter Employee Code and Full Name.")
+
         emps = get_all_employees(page=1, per_page=1000)
         df_emps = pd.DataFrame(emps.get("employees", []))
         if not df_emps.empty:
             st.dataframe(df_emps[["employee_id", "name", "email", "gender", "company_type", "wfh_available", "favourite_activities", "mental_fatigue_score"]], use_container_width=True)
         else:
-            st.info("No employees registered yet.")
+            st.info("No employees registered yet. Use the form above to add an employee.")
 
     # Tab 4: Report Export
     with tabs[3]:
@@ -248,7 +327,6 @@ elif role == "Administrator":
                 try:
                     create_user(new_username, hash_password(new_password), new_role, new_name, new_email)
                     st.success(f"User '{new_username}' created successfully!")
-                    st.experimental_rerun()
                 except Exception as e:
                     st.error(str(e))
             else:
@@ -293,4 +371,6 @@ elif role == "Machine Learning Engineer":
         st.subheader("Training Evaluation Curves")
         plot_path = os.path.join(PROJECT_DIR, "plots", "evaluation_results.png")
         if os.path.exists(plot_path):
-            st.image(plot_path, caption="ROC Curve and Confusion Matrix", use_column_width=True)
+            st.image(plot_path, caption="ROC Curve and Confusion Matrix", use_container_width=True)
+        else:
+            st.info("Evaluation plots not available. Run model training locally to generate plots.")
